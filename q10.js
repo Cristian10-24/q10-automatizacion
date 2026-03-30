@@ -32,12 +32,22 @@ export async function obtenerDatosQ10() {
     throw new Error("❌ Login fallido");
   } 
 
+
   // esperar que cargue después del login
   await page.waitForLoadState("networkidle");
 
   console.log("🍪 Obteniendo cookies...");
   const cookies = await context.cookies();
   const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+
+  console.log("📂 Entrando a Informes...");
+
+await page.goto("https://site6.q10.com/Informes", {
+  waitUntil: "networkidle"
+});
+
+// 🔥 IMPORTANTE: dejar que cargue scripts internos
+await page.waitForTimeout(6000);
 
   console.log("📡 Consultando reporte...");
 
@@ -47,7 +57,7 @@ export async function obtenerDatosQ10() {
   params.append("sedeJornada","1");
   params.append("programa","01JC");
   params.append("asignatura","01JC");
-  params.append("publicado","true");
+  params.append("publicado","True");
   params.append("archivado","false");
 
  console.log("📡 Consultando reporte desde navegador...");
@@ -58,8 +68,9 @@ const response = await page.evaluate(async (params) => {
     {
       method: "POST",
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-Requested-With": "XMLHttpRequest"
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest",
+        "Referer": "https://site6.q10.com/Informes"
       },
       body: params
     }
