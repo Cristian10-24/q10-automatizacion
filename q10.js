@@ -24,6 +24,14 @@ export async function obtenerDatosQ10() {
   console.log("🔐 Iniciando sesión...");
   await page.click("#submit-btn");
 
+  await page.waitForResponse(response =>
+    response.url().includes("/Login") && response.status() === 200
+  );    
+  
+  if (page.url().includes("Login")) {
+    throw new Error("❌ Login fallido");
+  } 
+
   // esperar que cargue después del login
   await page.waitForLoadState("networkidle");
 
@@ -48,13 +56,25 @@ export async function obtenerDatosQ10() {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cookieHeader
-      },
+        "Cookie": cookieHeader,
+        "X-Requested-With": "XMLHttpRequest"
+      },    
       body: params.toString()
     }
   );
 
-  const data = await response.json();
+  const text = await response.text();
+
+console.log("📨 RESPUESTA CRUDA:");
+console.log(text);
+
+// intentar parsear solo si es JSON
+let data;
+try {
+  data = JSON.parse(text);
+} catch (err) {
+  throw new Error("❌ No es JSON. Probablemente el login falló.\nRespuesta:\n" + text);
+}   
 
   if (!data.url) {
     throw new Error("❌ No se recibió URL del reporte. Puede que el login falló.");
