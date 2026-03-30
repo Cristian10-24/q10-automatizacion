@@ -46,6 +46,15 @@ await page.goto("https://site6.q10.com/Informes", {
   waitUntil: "networkidle"
 });
 
+console.log("🔐 Obteniendo token...");
+
+const token = await page.$eval(
+  'input[name="__RequestVerificationToken"]',
+  el => el.value
+);
+
+console.log("✅ Token obtenido:", token);
+
 // 🔥 IMPORTANTE: dejar que cargue scripts internos
 await page.waitForTimeout(6000);
 
@@ -62,7 +71,7 @@ await page.waitForTimeout(6000);
 
  console.log("📡 Consultando reporte desde navegador...");
 
-const response = await page.evaluate(async (params) => {
+const response = await page.evaluate(async ({ params, token }) => {
   const res = await fetch(
     "/Reportes/Excel/ExcelReporte/EducacionVirtual/ConsolidadoEducacionVirtual",
     {
@@ -70,6 +79,7 @@ const response = await page.evaluate(async (params) => {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
         "X-Requested-With": "XMLHttpRequest",
+        "RequestVerificationToken": token,
         "Referer": "https://site6.q10.com/Informes"
       },
       body: params
@@ -83,7 +93,10 @@ const response = await page.evaluate(async (params) => {
   } catch (e) {
     return { error: text };
   }
-}, params.toString());
+}, { 
+  params: params.toString(),
+  token 
+});
 
 if (response.error) {
   throw new Error("❌ Error del servidor:\n" + response.error);
