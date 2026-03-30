@@ -3,20 +3,35 @@ import fetch from "node-fetch";
 import xlsx from "xlsx";
 
 export async function obtenerDatosQ10() {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext();
   const page = await context.newPage();
 
-  await page.goto("https://site6.q10.com");
+  console.log("🔄 Abriendo Q10...");
+  await page.goto("https://site6.q10.com", { waitUntil: "domcontentloaded" });
 
-  await page.fill("#Usuario", process.env.Q10_USER);
-  await page.fill("#Clave", process.env.Q10_PASS);
-  await page.click("#btnIngresar");
+  // esperar que cargue bien todo (evita el linker-masker)
+  await page.waitForTimeout(4000);
 
+  console.log("✍️ Llenando credenciales...");
+
+  // ✅ SELECTORES CORRECTOS
+  await page.waitForSelector("#NombreUsuario", { timeout: 60000 });
+
+  await page.fill("#NombreUsuario", process.env.Q10_USER);
+  await page.fill("#Contrasena", process.env.Q10_PASS);
+
+  console.log("🔐 Iniciando sesión...");
+  await page.click("#submit-btn");
+
+  // esperar que cargue después del login
   await page.waitForLoadState("networkidle");
 
+  console.log("🍪 Obteniendo cookies...");
   const cookies = await context.cookies();
   const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join("; ");
+
+  console.log("📡 Consultando reporte...");
 
   const params = new URLSearchParams();
   params.append("Tipo","Q10.Jack.Areas.ReportesExcel.EducacionVirtual.ServicioReporteConsolidadoEducacionVirtual");
@@ -41,12 +56,20 @@ export async function obtenerDatosQ10() {
 
   const data = await response.json();
 
+  if (!data.url) {
+    throw new Error("❌ No se recibió URL del reporte. Puede que el login falló.");
+  }
+
+  console.log("⬇️ Descargando Excel...");
   const file = await fetch(data.url);
   const buffer = await file.buffer();
 
+  console.log("📊 Procesando Excel...");
   const workbook = xlsx.read(buffer, { type: "buffer" });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const jsonData = xlsx.utils.sheet_to_json(sheet);
+
+  console.log("✅ Datos obtenidos:", jsonData.length);
 
   await browser.close();
 
