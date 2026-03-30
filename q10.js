@@ -10,12 +10,10 @@ export async function obtenerDatosQ10() {
   console.log("🔄 Abriendo Q10...");
   await page.goto("https://site6.q10.com", { waitUntil: "domcontentloaded" });
 
-  // esperar que cargue bien todo (evita el linker-masker)
+  // Esperar carga inicial
   await page.waitForTimeout(4000);
 
   console.log("✍️ Llenando credenciales...");
-
-  // ✅ SELECTORES CORRECTOS
   await page.waitForSelector("#NombreUsuario", { timeout: 60000 });
 
   await page.fill("#NombreUsuario", process.env.Q10_USER);
@@ -26,89 +24,77 @@ export async function obtenerDatosQ10() {
 
   await page.waitForResponse(response =>
     response.url().includes("/Login") && response.status() === 200
-  );    
-  
-  if (page.url().includes("Login")) {
-    throw new Error("❌ Login fallido");
-  } 
-
-
-  // esperar que cargue después del login
-  await page.waitForLoadState("networkidle");
-
-  console.log("🍪 Obteniendo cookies...");
-  const cookies = await context.cookies();
-  const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join("; ");
-
-  console.log("📂 Entrando a Informes...");
-
-await page.goto("https://site6.q10.com/Informes", {
-  waitUntil: "networkidle"
-});
-
-console.log("🔐 Obteniendo token...");
-
-const token = await page.$eval(
-  'input[name="__RequestVerificationToken"]',
-  el => el.value
-);
-
-console.log("✅ Token obtenido:", token);
-
-// 🔥 IMPORTANTE: dejar que cargue scripts internos
-await page.waitForTimeout(6000);
-
-  console.log("📡 Consultando reporte...");
-
-  const params = new URLSearchParams();
-  params.append("Tipo","Q10.Jack.Areas.ReportesExcel.EducacionVirtual.ServicioReporteConsolidadoEducacionVirtual");
-  params.append("periodo","22");
-  params.append("sedeJornada","1");
-  params.append("programa","01JC");
-  params.append("asignatura","01JC");
-  params.append("publicado","True");
-  params.append("archivado","false");
-
- console.log("📡 Consultando reporte desde navegador...");
-
-const response = await page.evaluate(async ({ params, token }) => {
-  const res = await fetch(
-    "/Reportes/Excel/ExcelReporte/EducacionVirtual/ConsolidadoEducacionVirtual",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-        "X-Requested-With": "XMLHttpRequest",
-        "RequestVerificationToken": token,
-        "Referer": "https://site6.q10.com/Informes"
-      },
-      body: params
-    }
   );
 
-  const text = await res.text();
-
-  try {
-    return JSON.parse(text);
-  } catch (e) {
-    return { error: text };
+  if (page.url().includes("Login")) {
+    throw new Error("❌ Login fallido");
   }
-}, { 
-  params: params.toString(),
-  token 
-});
 
-if (response.error) {
-  throw new Error("❌ Error del servidor:\n" + response.error);
-}
+  await page.waitForLoadState("networkidle");
 
-if (!response.url) {
-  throw new Error("❌ No se recibió URL del reporte. Puede que el login falló.");
-}
+  console.log("📂 Entrando a Informes...");
+  await page.goto("https://site6.q10.com/Informes", {
+    waitUntil: "networkidle"
+  });
 
-console.log("⬇️ Descargando Excel...");
-const file = await fetch(response.url);
-const buffer = await file.buffer();
+  // 🔥 IMPORTANTE: dejar que cargue bien todo el contexto
+  await page.waitForTimeout(6000);
+
+  console.log("📡 Preparando parámetros...");
+  const params = new URLSearchParams();
+  params.append(
+    "Tipo",
+    "Q10.Jack.Areas.ReportesExcel.EducacionVirtual.ServicioReporteConsolidadoEducacionVirtual"
+  );
+  params.append("periodo", "22");
+  params.append("sedeJornada", "1");
+
+  // 🔥 PRUEBA MÁS SEGURA
+  params.append("programa", "0");
+  params.append("asignatura", "0");
+
+  params.append("publicado", "True");
+  params.append("archivado", "false");
+
+  console.log("📡 Consultando reporte desde navegador...");
+
+  const response = await page.evaluate(async (paramsString) => {
+    const res = await fetch(
+      "/Reportes/Excel/ExcelReporte/EducacionVirtual/ConsolidadoEducacionVirtual",
+      {
+        method: "POST",
+        credentials: "include", // 🔥 CLAVE
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "X-Requested-With": "XMLHttpRequest",
+          "Referer": "https://site6.q10.com/Informes"
+        },
+        body: paramsString
+      }
+    );
+
+    const text = await res.text();
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      return { error: text };
+    }
+  }, params.toString());
+
+  console.log("📨 RESPUESTA:", response);
+
+  if (response.error) {
+    throw new Error("❌ Error del servidor:\n" + response.error);
+  }
+
+  if (!response.url) {
+    throw new Error("❌ No se recibió URL del reporte.");
+  }
+
+  console.log("⬇️ Descargando Excel...");
+  const file = await fetch(response.url);
+  const buffer = await file.buffer();
 
   console.log("📊 Procesando Excel...");
   const workbook = xlsx.read(buffer, { type: "buffer" });
