@@ -50,39 +50,41 @@ export async function obtenerDatosQ10() {
   params.append("publicado","true");
   params.append("archivado","false");
 
-  const response = await fetch(
-    "https://site6.q10.com/Reportes/Excel/ExcelReporte/EducacionVirtual/ConsolidadoEducacionVirtual",
+ console.log("📡 Consultando reporte desde navegador...");
+
+const response = await page.evaluate(async (params) => {
+  const res = await fetch(
+    "/Reportes/Excel/ExcelReporte/EducacionVirtual/ConsolidadoEducacionVirtual",
     {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
-        "Cookie": cookieHeader,
         "X-Requested-With": "XMLHttpRequest"
-      },    
-      body: params.toString()
+      },
+      body: params
     }
   );
 
-  const text = await response.text();
+  const text = await res.text();
 
-console.log("📨 RESPUESTA CRUDA:");
-console.log(text);
-
-// intentar parsear solo si es JSON
-let data;
-try {
-  data = JSON.parse(text);
-} catch (err) {
-  throw new Error("❌ No es JSON. Probablemente el login falló.\nRespuesta:\n" + text);
-}   
-
-  if (!data.url) {
-    throw new Error("❌ No se recibió URL del reporte. Puede que el login falló.");
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    return { error: text };
   }
+}, params.toString());
 
-  console.log("⬇️ Descargando Excel...");
-  const file = await fetch(data.url);
-  const buffer = await file.buffer();
+if (response.error) {
+  throw new Error("❌ Error del servidor:\n" + response.error);
+}
+
+if (!response.url) {
+  throw new Error("❌ No se recibió URL del reporte. Puede que el login falló.");
+}
+
+console.log("⬇️ Descargando Excel...");
+const file = await fetch(response.url);
+const buffer = await file.buffer();
 
   console.log("📊 Procesando Excel...");
   const workbook = xlsx.read(buffer, { type: "buffer" });
