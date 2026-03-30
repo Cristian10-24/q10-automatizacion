@@ -1,0 +1,11 @@
+{
+  "name": "q10-automatizacion",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "playwright": "^1.40.0",
+    "node-fetch": "^3.3.2",
+    "xlsx": "^0.18.5",
+    "googleapis": "^133.0.0"
+  }
+}
